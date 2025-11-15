@@ -29,12 +29,12 @@ typedef struct _eat_desc
 	WORD ordinal;
 	DWORD rva;
 	const char* forwarder;
-}eat_desc, * peat_desc;
+}eat_desc, *peat_desc;
 typedef struct _myeat
 {
 	std::vector<std::string> components;
 	eat_desc desc;
-}myeat, * pmyeat;
+}myeat, *pmyeat;
 
 
 /* PDB Related */
@@ -120,7 +120,7 @@ typedef struct _udt_desc
 	uint32_t field_list_ti;
 	uint32_t derived_ti;
 	uint32_t vshape_ti;
-}udt_desc, * pudt_desc;
+}udt_desc, *pudt_desc;
 enum : uint16_t {
 	LF_CLASS = 0x1504,
 	LF_STRUCTURE = 0x1505,
@@ -141,7 +141,7 @@ enum : uint16_t {
 class PPDBParser
 {
 public:
-
+	
 	/* constructor */
 	PPDBParser( std::string module_name, std::wstring _cache_dir = L".\\Cached\\" )
 	{
@@ -181,7 +181,7 @@ public:
 		}
 		/* in case the file is in cache we get it from there */
 		else { if ( !this->read_pdb_from_cache( final_path_in_cache ) ) return false; }
-
+		
 
 		/* actually parsing the PBD */
 		if ( !this->parse( ) ) return false;
@@ -217,20 +217,20 @@ public:
 		std::wstring temp_url = L"http://msdl.microsoft.com/download/symbols/";
 		std::wstring temp_file_id = L"";
 		std::wstring wstr_pdbname = std::wstring( info.pdbfile, info.pdbfile + std::strlen( info.pdbfile ) );
-		temp_url.append( wstr_pdbname + L"/" ); /* ex: ntkrnlmp.pdb */
+		temp_url.append( wstr_pdbname +  L"/" ); /* ex: ntkrnlmp.pdb */
 
 		/* building the file id */
 		temp_file_id.append( std::format( L"{:08X}", info.guid.Data1 ) );
 		temp_file_id.append( std::format( L"{:04X}", info.guid.Data2 ) );
 		temp_file_id.append( std::format( L"{:04X}", info.guid.Data3 ) );
 		for ( int i = 0; i < 8; i++ ) { temp_file_id.append( std::format( L"{:02X}", info.guid.Data4[i] ) ); }
-
+		
 		/* fixing the URL */
 		temp_url.append( temp_file_id );
 		temp_url.append( std::to_wstring( info.age ) + L"/" );
 		temp_url.append( wstr_pdbname );
 		this->pdb_url = temp_url;
-
+	
 		/* fixing the file ID */
 		temp_file_id.append( L"." + std::to_wstring( info.age ) + L".pdb" );
 		this->file_id = temp_file_id;
@@ -266,7 +266,7 @@ public:
 
 		/* connecting */
 		HINTERNET hConnect = WinHttpConnect( hSession, host, uc.nPort, 0 );
-		if ( !hConnect )
+		if ( !hConnect ) 
 		{
 			WinHttpCloseHandle( hSession );
 			return false;
@@ -275,7 +275,7 @@ public:
 		/* opening the request */
 		DWORD flags = isHttps ? WINHTTP_FLAG_SECURE : 0;
 		HINTERNET hRequest = WinHttpOpenRequest( hConnect, L"GET", path, nullptr, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, flags );
-		if ( !hRequest )
+		if ( !hRequest ) 
 		{
 			WinHttpCloseHandle( hConnect );
 			WinHttpCloseHandle( hSession );
@@ -284,7 +284,7 @@ public:
 
 		/* sending the request */
 		BOOL ok = WinHttpSendRequest( hRequest, WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, 0, 0 );
-		if ( !ok )
+		if ( !ok ) 
 		{
 			WinHttpCloseHandle( hRequest );
 			WinHttpCloseHandle( hConnect );
@@ -294,16 +294,16 @@ public:
 
 		/* receiving the response */
 		ok = WinHttpReceiveResponse( hRequest, nullptr );
-		if ( !ok )
+		if ( !ok ) 
 		{
 			WinHttpCloseHandle( hRequest );
 			WinHttpCloseHandle( hConnect );
 			WinHttpCloseHandle( hSession );
 			return false;
 		}
-
+		
 		/* read the body */
-		for ( ;; )
+		for ( ;; ) 
 		{
 			DWORD avail = 0;
 			if ( !WinHttpQueryDataAvailable( hRequest, &avail ) || avail == 0 )
@@ -333,10 +333,10 @@ public:
 		std::vector<uint8_t> output;
 		uint32_t size = this->ssizes[idx];
 		if ( size == 0xFFFFFFFF || !size ) return output;
-
+	
 		/* resizing the vector */
 		output.resize( size );
-
+		
 		/* getting the blocks for the stream */
 		for ( uint32_t block : this->sblocks[idx] )
 		{
@@ -391,11 +391,11 @@ public:
 		if ( !this->parsed || this->tpi.size( ) <= 0 ) return std::nullopt;
 
 		/* vars */
-		const uintptr_t		tpi_base = ( uintptr_t )this->tpi.data( );
-		const uintptr_t		tpi_end = tpi_base + this->tpi.size( );
-		const TpiHeader* tpi_hdr = ( TpiHeader* )tpi_base;
-		const uintptr_t		type_records = tpi_base + tpi_hdr->headerSize;
-		const uintptr_t		type_records_end = type_records + tpi_hdr->typeRecordBytes;
+		const uintptr_t		tpi_base			= ( uintptr_t )this->tpi.data( );
+		const uintptr_t		tpi_end				= tpi_base + this->tpi.size( );
+		const TpiHeader*	tpi_hdr				= ( TpiHeader* )tpi_base;
+		const uintptr_t		type_records		= tpi_base + tpi_hdr->headerSize;
+		const uintptr_t		type_records_end	= type_records + tpi_hdr->typeRecordBytes;
 
 		/* building the type index ( if not already built ) */
 		if ( this->type_index.empty( ) )
@@ -411,9 +411,9 @@ public:
 			/* iterating over each leaf */
 			while ( cur + 4 <= type_records_end && ti < ti_end )
 			{
-				pm_tpi_leaf_desc* leaf_desc = ( pm_tpi_leaf_desc* )cur;
-				const uint8_t* rec_data = ( uint8_t* )( cur + 2 );
-				const uint8_t* rec_data_end = ( uint8_t* )( cur + 2 + leaf_desc->len );
+				pm_tpi_leaf_desc*	leaf_desc		= ( pm_tpi_leaf_desc* )cur;
+				const uint8_t*		rec_data		= ( uint8_t* )( cur + 2 );
+				const uint8_t*		rec_data_end	= ( uint8_t* )( cur + 2 + leaf_desc->len );
 				if ( ( uintptr_t )rec_data_end > type_records_end ) break;
 
 				/* inserting the leaf pointer into the map */
@@ -424,7 +424,7 @@ public:
 				++ti;
 			}
 		}
-
+		
 		/* iterating the type index */
 		for ( const auto& entry : this->type_index )
 		{
@@ -459,9 +459,9 @@ public:
 	__forceinline std::wstring get_file_id( ) { return this->file_id; }
 
 	/* dynamically add path */
-	__forceinline void add_lookup_path( std::string _path )
-	{
-		this->lookup_paths.push_back( _path );
+	__forceinline void add_lookup_path( std::string _path ) 
+	{ 
+		this->lookup_paths.push_back( _path ); 
 		return;
 	}
 
@@ -665,19 +665,19 @@ protected:
 		uint8_t* entry = ( uint8_t* )this->type_index[idx];	if ( !entry ) return -1;
 
 		/* getting the start of the block, the length and the end */
-		uintptr_t	ptr = ( uintptr_t )entry;	/* length is at entry - 2 */
-		uint16_t	len = *( uint16_t* )( ( uintptr_t )entry - 2 );
+		uintptr_t	ptr = (uintptr_t)entry;	/* length is at entry - 2 */
+		uint16_t	len = *( uint16_t* )( ( uintptr_t )entry - 2 ); 
 		uintptr_t	end = ptr + len;
 
 		/* checking if it's a LF_FIELDLIST */
 		if ( *( uint16_t* )ptr != LF_FIELDLIST ) return -1;
-
+		
 		/* now we have to interate for each field in the structure */
 		while ( ptr < end )
 		{
 			/* checking if there's still an entry that we can parse */
 			if ( ptr + 2 > end ) break;
-
+			
 			/* getting the field */
 			uint16_t field_type = *( uint16_t* )ptr; ptr += 2;
 			if ( field_type != LF_MEMBER ) continue;	/* only interested in members */
@@ -686,9 +686,9 @@ protected:
 			/* ti type is at +4   [ not needed ] */ ptr += 4;
 
 			/* from the current ptr pointer we get the field name */
-			const uint8_t* _str_ptr = ( uint8_t* )( ptr );
-			uint32_t		offset = this->pm_read_numeric( _str_ptr );  // advances p
-			std::string		curr_field_name = this->pm_read_string( _str_ptr ); // advances p
+			const uint8_t*	_str_ptr		= ( uint8_t* )( ptr );
+			uint32_t		offset			= this->pm_read_numeric( _str_ptr );  // advances p
+			std::string		curr_field_name	= this->pm_read_string( _str_ptr ); // advances p
 
 			/* checking if it matches the target */
 			if ( curr_field_name != field_name ) continue;
@@ -702,20 +702,20 @@ protected:
 private:
 
 	/* attributes */
-	bool initialized = false;
-	std::string mod_name = "";
-	std::wstring cache_dir = L"";
-	std::wstring pdb_url = L"";
-	std::wstring file_id = L"";
-	std::vector<uint8_t> pdb = { };
+	bool initialized			= false;
+	std::string mod_name		= "";
+	std::wstring cache_dir		= L"";
+	std::wstring pdb_url		= L"";
+	std::wstring file_id		= L"";
+	std::vector<uint8_t> pdb	= { };
 
 	/* PDB related */
-	bool parsed = false;
+	bool parsed				= false;
 	MsfSuperBlock* sb;
-	uint32_t block_size = 0;
-	uint32_t pubs_idx = 0;
-	uint32_t sym_idx = 0;
-	DBIHeader* dbi_hdr = 0;
+	uint32_t block_size		= 0;
+	uint32_t pubs_idx		= 0;
+	uint32_t sym_idx		= 0;
+	DBIHeader* dbi_hdr		= 0;
 	std::vector<BYTE> dbi;
 	std::vector<BYTE> sym;
 	std::vector<BYTE> tpi;
@@ -831,19 +831,19 @@ public:
 
 	/* from kdmapper */
 	bool res_imports( portable_executable::vec_imports imports ) {
-		for ( const auto& current_import : imports )
+		for ( const auto& current_import : imports ) 
 		{
 			ULONG64 Module = kdmUtils::GetKernelModuleAddress( current_import.module_name );
 			if ( !Module ) { return false; }
 
-			for ( auto& current_function_data : current_import.function_datas )
+			for ( auto& current_function_data : current_import.function_datas ) 
 			{
 				ULONG64 function_address = intel_driver::GetKernelModuleExport( Module, current_function_data.name );
 
-				if ( !function_address )
+				if ( !function_address ) 
 				{
 					//Lets try with ntoskrnl
-					if ( Module != intel_driver::ntoskrnlAddr )
+					if ( Module != intel_driver::ntoskrnlAddr ) 
 					{
 						function_address = intel_driver::GetKernelModuleExport( intel_driver::ntoskrnlAddr, current_function_data.name );
 						if ( !function_address ) { return false; }
@@ -869,7 +869,7 @@ public:
 			pos = str.find( discriminator, start );
 			if ( pos == std::string::npos )
 			{
-				out.emplace_back( str.substr( start ) );
+				out.emplace_back( str.substr( start ) ); 
 				break;
 			}
 
@@ -902,7 +902,7 @@ public:
 		auto parser_lookup = this->active_parsers.find( target_module );
 		if ( parser_lookup != this->active_parsers.end( ) ) { parser = &parser_lookup->second; }
 		else { parser = new PPDBParser( target_module ); }
-
+		
 		/* checking if the target parser has been intialized correctly */
 		if ( !parser->is_initialized( ) ) return false;
 
@@ -999,7 +999,7 @@ public:
 		/* Tables */
 		const DWORD* funcs = reinterpret_cast< const DWORD* >( base + dir->AddressOfFunctions );
 		const DWORD* names = reinterpret_cast< const DWORD* >( base + dir->AddressOfNames );
-		const WORD* ords = reinterpret_cast< const WORD* >( base + dir->AddressOfNameOrdinals );
+		const WORD* ords = reinterpret_cast< const WORD* > ( base + dir->AddressOfNameOrdinals );
 
 		const DWORD nFuncs = dir->NumberOfFunctions;
 		const DWORD nNames = dir->NumberOfNames;
@@ -1094,11 +1094,11 @@ public:
 	{
 		/* getting the headers & needed information */
 		NTSTATUS status = 0;
-		this->dos = ( PIMAGE_DOS_HEADER )drv_bytes.data( );
-		this->nt = ( PIMAGE_NT_HEADERS64 )( ( uintptr_t )this->dos + this->dos->e_lfanew );
+		this->dos	= ( PIMAGE_DOS_HEADER )drv_bytes.data( );
+		this->nt	= ( PIMAGE_NT_HEADERS64 )( ( uintptr_t )this->dos + this->dos->e_lfanew );
 		if ( this->nt->OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR64_MAGIC ) { return 0; }
 		this->size = this->nt->OptionalHeader.SizeOfImage;
-
+		
 		/* allocating the image temporarily */
 		this->base = ( BYTE* )VirtualAlloc( nullptr, this->size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE );
 		if ( !this->base ) { return 1; }
@@ -1126,7 +1126,7 @@ public:
 					continue;
 
 				auto local_section = reinterpret_cast< void* >( reinterpret_cast< ULONG64 >( this->base ) + curr_img_sec[i].VirtualAddress );
-				memcpy( local_section, reinterpret_cast< void* >( reinterpret_cast< ULONG64 >( this->drv_bytes.data( ) ) + curr_img_sec[i].PointerToRawData ), curr_img_sec[i].SizeOfRawData );
+				memcpy( local_section, reinterpret_cast< void* >( reinterpret_cast< ULONG64 >( this->drv_bytes.data() ) + curr_img_sec[i].PointerToRawData ), curr_img_sec[i].SizeOfRawData );
 			}
 
 
@@ -1153,7 +1153,7 @@ public:
 				this->krnl_base = realBase;
 				break;
 			}
-
+			
 
 			/* resolve Perfect Mapper EAT into IAT */
 			if ( !turn_eat_into_iat( this->base ) )
@@ -1198,7 +1198,7 @@ public:
 					kdmLog( L"[-] WARNING: Failed to free memory!" << std::endl );
 				}
 			}
-
+			
 
 			/* freeing the locally allocated memory */
 			VirtualFree( this->base, 0, MEM_RELEASE );
@@ -1234,12 +1234,12 @@ private:
 	bool free = false;
 
 	/* nt image */
-	BYTE* base = NULL;
-	ULONG					size = 0;
-	uintptr_t				krnl_base = 0;
-	PIMAGE_DOS_HEADER		dos = NULL;
-	PIMAGE_NT_HEADERS64		nt = NULL;
-	PIMAGE_SECTION_HEADER	sec = NULL;
+	BYTE*					base		= NULL;
+	ULONG					size		= 0;
+	uintptr_t				krnl_base	= 0;
+	PIMAGE_DOS_HEADER		dos			= NULL;
+	PIMAGE_NT_HEADERS64		nt			= NULL;
+	PIMAGE_SECTION_HEADER	sec			= NULL;
 	std::unordered_map<std::string, PPDBParser> active_parsers;
 
 };
