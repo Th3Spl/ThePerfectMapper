@@ -8,24 +8,27 @@
 /* entry point */
 int main( int argc, const char** argv )
 {
-	/* mapping the driver */
-	//PPDBParser parser( "ntoskrnl.exe" );
-	//
-	//if ( !parser.is_initialized( ) )
-	//{
-	//	std::cout << "(-) Could not initialize the parser" << std::endl;
-	//	return 1;
-	//}
-	//std::cout << "(+) Parser initialized correctly" << std::endl;
-	//auto xx = parser.find_struct_field( "_EPROCESS", "ActiveProcessLinks" );
-	//auto func = parser.find_symbol( "MmMapIoSpace" );
-	//if ( !xx ) return 1;
-	//std::cout << "..." << std::hex << *xx << std::endl;
-	//if ( !func ) return 1;
-	//std::cout << "...." << std::endl;
+	/* invalid usage */
+	if ( argc < 2 )
+	{
+		std::cout << std::endl << "(-) Invalid parameters" << std::endl;
+		std::cout << " - Usage: ThePerfectMapper.exe <drv_path>" << std::endl;
+		return 1;
+	}
 
-	PMapper mapper( ".\\TestDrv.sys" );
-	if ( !mapper.map( ) ) std::cout << "(+) Image mapped successfully..." << std::endl;
-	else std::cout << "(-) Could not map the driver!" << std::endl;
+	/* checking if the provided path exists */
+	if ( !std::filesystem::exists( argv[1] ) || !std::filesystem::is_regular_file( argv[1] ) )
+	{
+		std::cout << "(-) Could not resolve the driver path!";
+		return 1;
+	}
+
+	/* mapping the driver */
+	PMapper mapper( argv[1] );
+	uintptr_t status = mapper.map( );
+
+	/* logging */
+	if ( !status ) std::cout << "(+) Image mapped successfully..." << std::endl;
+	else std::cout << "(-) Could not map the driver! [ Err: " << status << "]" << std::endl;
 	return 0;
 }
