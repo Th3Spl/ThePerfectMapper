@@ -7,3 +7,17 @@ pattern scanning and offsets. Every symbol that is requested through the
 special `EAT` will get resolved by the mapper through `PDB` parsing, 
 as long as the user can reach `Microsoft's symbols server` and the names
 provided in the `EAT` are correct.
+
+### Supports:
+- [x] Symbols
+- [x] Pointers
+- [x] Structure offsets
+
+This can easily work even without internet as long as the needed `.pdb`-s
+are saved in the cache directory.
+
+### Credits & Resources:
+- [KdMapper by: TheCruz](https://github.com/TheCruZ/kdmapper)
+- [Microsoft PDB](https://github.com/microsoft/microsoft-pdb)
+<br />
+- Th3Spl
