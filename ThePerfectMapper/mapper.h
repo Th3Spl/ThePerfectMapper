@@ -22,7 +22,7 @@
 #undef min
 
 
-/* PM export descriptors */
+/* PM export descriptors  */
 typedef struct _eat_desc
 {
 	const char* name;
