@@ -372,7 +372,7 @@ public:
 			/* we're interested */
 			if ( desc->type == 0x110E )
 			{
-				if ( std::string( desc->name ) == fn_name )
+				if ( demangle_name( desc->name ) == fn_name || std::string( desc->name ) == fn_name )
 					return my_sym_loc{ desc->seg, desc->off };
 			}
 
@@ -699,6 +699,14 @@ protected:
 		return -1;
 	}
 
+	/* the following function will demangle C++ decorated names so that we can look it up easily */
+	std::string demangle_name( const char* decorated ) {
+		char buf[4096];
+		DWORD flags = UNDNAME_NAME_ONLY; /* or UNDNAME_NAME_ONLY, etc. */
+		if ( UnDecorateSymbolName( decorated, buf, sizeof( buf ), flags ) ) return buf;
+		return decorated; /* fallback */
+	}
+
 private:
 
 	/* attributes */
@@ -931,7 +939,7 @@ public:
 	{
 		/* vars */
 		std::string special_type = "";
-
+		
 		/* if it's special we get the special type */
 		if ( is_special )
 		{
@@ -953,7 +961,7 @@ public:
 		std::string target_module = entry.components[3];
 		std::string symbol_name = entry.components[4];
 		PPDBParser* parser = nullptr;
-
+	
 		/* parser is already present for the target module otherwise we initialize it */
 		auto parser_lookup = this->active_parsers.find( target_module );
 		if ( parser_lookup != this->active_parsers.end( ) ) { parser = &parser_lookup->second; }
@@ -980,7 +988,7 @@ public:
 	bool turn_eat_into_iat( void* local_image )
 	{
 		if ( !local_image ) return false;
-
+		
 		/* NT headers */
 		const auto* nt = portable_executable::GetNtHeaders( local_image );
 		if ( !nt ) return false;
@@ -989,7 +997,7 @@ public:
 
 		/* Export data directory */
 		const auto& dd = nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT];
-		if ( dd.VirtualAddress == 0 || dd.Size < sizeof( IMAGE_EXPORT_DIRECTORY ) ) return true; /* no exports* /
+		if ( dd.VirtualAddress == 0 || dd.Size < sizeof( IMAGE_EXPORT_DIRECTORY ) ) return true; /* no exports */
 
 		/* Export directory */
 		const auto* dir = reinterpret_cast< const IMAGE_EXPORT_DIRECTORY* >( base + dd.VirtualAddress );
@@ -1048,7 +1056,7 @@ public:
 
 			/* handling the export */
 			if ( !pm_eat_handler( local_image, { components, e }, is_special ) )
-				std::cout << "(-) Failed --> " << e.name << std::endl;
+				std::cout << "(-) Failed --> " << e.name << std::endl;;
 		}
 
 		return true;
@@ -1098,7 +1106,7 @@ public:
 		this->nt	= ( PIMAGE_NT_HEADERS64 )( ( uintptr_t )this->dos + this->dos->e_lfanew );
 		if ( this->nt->OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR64_MAGIC ) { return 0; }
 		this->size = this->nt->OptionalHeader.SizeOfImage;
-		
+
 		/* allocating the image temporarily */
 		this->base = ( BYTE* )VirtualAlloc( nullptr, this->size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE );
 		if ( !this->base ) { return 1; }
@@ -1111,7 +1119,6 @@ public:
 		if ( !intel_driver::IsRunning( ) ) { return 2; }
 		this->krnl_base = intel_driver::AllocatePool( nt::POOL_TYPE::NonPagedPool, this->size );
 		if ( !this->krnl_base ) { VirtualFree( this->base, 0, MEM_RELEASE ); return 0; }
-
 
 		/* mapping the image */
 		do
@@ -1129,15 +1136,12 @@ public:
 				memcpy( local_section, reinterpret_cast< void* >( reinterpret_cast< ULONG64 >( this->drv_bytes.data() ) + curr_img_sec[i].PointerToRawData ), curr_img_sec[i].SizeOfRawData );
 			}
 
-
 			/* saving the real base ( also checking if we have to destroy the PE headers ) */
 			ULONG64 realBase = this->krnl_base;
 			if ( destroy_hdrs ) { this->krnl_base -= virt_hdr_size; }
 
-
 			/* relocating the image given the delta */
 			reloc_img_by_delta( portable_executable::GetRelocs( this->base ), this->krnl_base - this->nt->OptionalHeader.ImageBase );
-
 
 			/* fixing the security cookie */
 			if ( !fix_sec_cookie( this->base, this->krnl_base ) )
@@ -1146,14 +1150,12 @@ public:
 				return 3;
 			}
 
-
 			/* resolving the imports */
 			if ( !res_imports( portable_executable::GetImports( this->base ) ) ) {
 				kdmLog( L"[-] Failed to resolve imports" << std::endl );
 				this->krnl_base = realBase;
 				break;
 			}
-			
 
 			/* resolve Perfect Mapper EAT into IAT */
 			if ( !turn_eat_into_iat( this->base ) )
@@ -1163,14 +1165,12 @@ public:
 				break;
 			}
 
-
 			/* writing the mapped image into kernel memory */
 			if ( !intel_driver::WriteMemory( realBase, ( PVOID )( ( uintptr_t )this->base + ( destroy_hdrs ? virt_hdr_size : 0 ) ), this->size ) ) {
 				kdmLog( L"[-] Failed to write local image to remote image" << std::endl );
 				this->krnl_base = realBase;
 				break;
 			}
-
 
 			/* getting the address of the entry point */
 			const ULONG64 address_of_entry_point = this->krnl_base + this->nt->OptionalHeader.AddressOfEntryPoint;
@@ -1212,6 +1212,21 @@ public:
 		VirtualFree( this->base, 0, MEM_RELEASE );
 		free_status = intel_driver::FreePool( this->krnl_base );
 		return 4;
+	}
+
+
+	/* crash handler */
+	static LONG WINAPI simple_crash_handler( EXCEPTION_POINTERS* ExceptionInfo )
+	{
+		if ( ExceptionInfo && ExceptionInfo->ExceptionRecord )
+			kdmLog( L"[!!] Crash at addr 0x" << ExceptionInfo->ExceptionRecord->ExceptionAddress << L" by 0x" << std::hex << ExceptionInfo->ExceptionRecord->ExceptionCode << std::endl );
+		else
+			kdmLog( L"[!!] Crash" << std::endl );
+
+		if ( intel_driver::hDevice )
+			intel_driver::Unload( );
+
+		return EXCEPTION_EXECUTE_HANDLER;
 	}
 
 

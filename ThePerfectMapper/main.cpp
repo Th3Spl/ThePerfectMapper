@@ -23,6 +23,9 @@ int main( int argc, const char** argv )
 		return 1;
 	}
 
+	/* simple handler for exception */
+	SetUnhandledExceptionFilter( PMapper::simple_crash_handler );
+
 	/* mapping the driver */
 	PMapper mapper( argv[1] );
 	uintptr_t status = mapper.map( );
