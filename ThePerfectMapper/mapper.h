@@ -385,7 +385,7 @@ public:
 	}
 
 	/* this function will be used to locate a target structure and retrieve a field offset ( ex: _EPROCESS.DirectoryTableBase )*/
-	std::optional<uint32_t> find_struct_field( const std::string& struct_name, const std::string& field_name )
+	std::optional<uint32_t> find_struct_field( const std::string& struct_name, const std::string& field_name, bool is_size_query = false )
 	{
 		/* basic checks */
 		if ( !this->parsed || this->tpi.size( ) <= 0 ) return std::nullopt;
@@ -441,6 +441,10 @@ public:
 			std::string name = this->pm_read_string( ptr );
 			if ( name == struct_name )
 			{
+				/* checking if the query wants the size of the struct as return */
+				if ( is_size_query ) return size_bytes;
+
+				/* otherwise we look for the structure field */
 				int offset = this->get_struct_off_from_fieldname( desc->field_list_ti, field_name );
 				if ( offset != -1 ) return offset;
 			}
@@ -922,7 +926,7 @@ public:
 			std::string field_name = entry.components[6];
 
 			/* looking up the struct + field --> offset */
-			auto opt_offset = parser->find_struct_field( struct_name, field_name );
+			auto opt_offset = parser->find_struct_field( struct_name, field_name, false );
 			if ( !opt_offset ) return false;
 
 			/* setting the actual offset */
@@ -930,6 +934,22 @@ public:
 			return true;
 		}
 
+		/* [ SPECIAL ] struct size resolver */
+		if ( special_type.find( "size" ) != std::string::npos )
+		{
+			/* we need the structure name and the field name for the lookup */
+			std::string struct_name = entry.components[5];
+
+			/* looking up the struct + field --> offset */
+			auto opt_struct_size = parser->find_struct_field( struct_name, "", true );
+			if ( !opt_struct_size ) return false;
+
+			/* setting the actual offset */
+			*( uintptr_t* )( ( uintptr_t )local_base + entry.desc.rva ) = *opt_struct_size;
+			return true;
+		}
+
+		/* failed, special type could not be resolved */
 		return false;
 	}
 
@@ -1104,21 +1124,21 @@ public:
 		NTSTATUS status = 0;
 		this->dos	= ( PIMAGE_DOS_HEADER )drv_bytes.data( );
 		this->nt	= ( PIMAGE_NT_HEADERS64 )( ( uintptr_t )this->dos + this->dos->e_lfanew );
-		if ( this->nt->OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR64_MAGIC ) { return 0; }
+		if ( this->nt->OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR64_MAGIC ) { return 1; }
 		this->size = this->nt->OptionalHeader.SizeOfImage;
 
 		/* allocating the image temporarily */
 		this->base = ( BYTE* )VirtualAlloc( nullptr, this->size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE );
-		if ( !this->base ) { return 1; }
+		if ( !this->base ) { return 2; }
 
 		/* getting needed information */
 		DWORD virt_hdr_size = ( IMAGE_FIRST_SECTION( this->nt ) )->VirtualAddress;
 		this->size = this->size - ( destroy_hdrs ? virt_hdr_size : 0 );
 
 		/* allocating the kernel memory */
-		if ( !intel_driver::IsRunning( ) ) { return 2; }
+		if ( !intel_driver::IsRunning( ) ) { return 3; }
 		this->krnl_base = intel_driver::AllocatePool( nt::POOL_TYPE::NonPagedPool, this->size );
-		if ( !this->krnl_base ) { VirtualFree( this->base, 0, MEM_RELEASE ); return 0; }
+		if ( !this->krnl_base ) { VirtualFree( this->base, 0, MEM_RELEASE ); return 4; }
 
 		/* mapping the image */
 		do
@@ -1147,7 +1167,7 @@ public:
 			if ( !fix_sec_cookie( this->base, this->krnl_base ) )
 			{
 				kdmLog( L"[-] Failed to fix cookie" << std::endl );
-				return 3;
+				return 5;
 			}
 
 			/* resolving the imports */
@@ -1211,7 +1231,7 @@ public:
 		bool free_status = false;
 		VirtualFree( this->base, 0, MEM_RELEASE );
 		free_status = intel_driver::FreePool( this->krnl_base );
-		return 4;
+		return 6;
 	}
 
 

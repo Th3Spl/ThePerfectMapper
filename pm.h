@@ -47,3 +47,10 @@
 	__pragma( comment( linker, "/EXPORT:#PM#" #_name "#@offset#" _src_module "#" _src_struct "#" _src_comp_name "=" #_name ",DATA" )) \
 	_type _name; \
 	cpp_fixup_e 
+
+/* Adds a PDB IAT in the EAT for the size of a given structure */
+#define pm_iat_ssize( _name, _src_module, _src_struct ) \
+	cpp_fixup_s \
+	__pragma( comment( linker, "/EXPORT:#PM#" #_name "#@size#" _src_module "#" _src_struct "=" #_name ",DATA" ) ) \
+	unsigned long long _name; \
+	cpp_fixup_e
