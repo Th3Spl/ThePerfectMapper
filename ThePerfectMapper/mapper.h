@@ -129,6 +129,21 @@ enum : uint16_t {
 	LF_MEMBER = 0x150d,
 };
 
+/* mapping returns */
+typedef enum PMMappingResult
+{
+	PMSuccess,
+	PMInvalidImage,
+	PMFailedLocalAlloc,
+	PMDriverNotLoaded,
+	PMCouldNotAllocateKernelMemory,
+	PMCouldNotFixSecurityCookie,
+	PMCouldNotResolveImports,
+	PMCouldNotFixSpecialEAT,
+	PMCouldNotWriteMappedImageInKernelMemory,
+	PMCouldNotCallDrvEntryPoint
+};
+
 #pragma pack(pop)
 
 
@@ -1118,27 +1133,27 @@ public:
 
 
 	/* map ( singe call --> map ) */
-	uintptr_t map( bool destroy_hdrs = true )
+	PMMappingResult map( bool destroy_hdrs = true )
 	{
 		/* getting the headers & needed information */
-		NTSTATUS status = 0;
+		PMMappingResult status = PMSuccess;
 		this->dos	= ( PIMAGE_DOS_HEADER )drv_bytes.data( );
 		this->nt	= ( PIMAGE_NT_HEADERS64 )( ( uintptr_t )this->dos + this->dos->e_lfanew );
-		if ( this->nt->OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR64_MAGIC ) { return 1; }
+		if ( this->nt->OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR64_MAGIC ) { return PMInvalidImage; }
 		this->size = this->nt->OptionalHeader.SizeOfImage;
 
 		/* allocating the image temporarily */
 		this->base = ( BYTE* )VirtualAlloc( nullptr, this->size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE );
-		if ( !this->base ) { return 2; }
+		if ( !this->base ) { return PMFailedLocalAlloc; }
 
 		/* getting needed information */
 		DWORD virt_hdr_size = ( IMAGE_FIRST_SECTION( this->nt ) )->VirtualAddress;
 		this->size = this->size - ( destroy_hdrs ? virt_hdr_size : 0 );
 
 		/* allocating the kernel memory */
-		if ( !intel_driver::IsRunning( ) ) { return 3; }
+		if ( !intel_driver::IsRunning( ) ) { return PMDriverNotLoaded; }
 		this->krnl_base = intel_driver::AllocatePool( nt::POOL_TYPE::NonPagedPool, this->size );
-		if ( !this->krnl_base ) { VirtualFree( this->base, 0, MEM_RELEASE ); return 4; }
+		if ( !this->krnl_base ) { VirtualFree( this->base, 0, MEM_RELEASE ); return PMCouldNotAllocateKernelMemory; }
 
 		/* mapping the image */
 		do
@@ -1165,42 +1180,41 @@ public:
 
 			/* fixing the security cookie */
 			if ( !fix_sec_cookie( this->base, this->krnl_base ) )
-			{
-				kdmLog( L"[-] Failed to fix cookie" << std::endl );
-				return 5;
+			{				
+				return PMCouldNotFixSecurityCookie;
 			}
 
 			/* resolving the imports */
 			if ( !res_imports( portable_executable::GetImports( this->base ) ) ) {
-				kdmLog( L"[-] Failed to resolve imports" << std::endl );
 				this->krnl_base = realBase;
+				status = PMCouldNotResolveImports;
 				break;
 			}
 
 			/* resolve Perfect Mapper EAT into IAT */
 			if ( !turn_eat_into_iat( this->base ) )
 			{
-				kdmLog( L"[-] ThePerfectInjector failed to fix EAT!" << std::endl );
 				this->krnl_base = realBase;
+				status = PMCouldNotFixSpecialEAT;
 				break;
 			}
 
 			/* writing the mapped image into kernel memory */
-			if ( !intel_driver::WriteMemory( realBase, ( PVOID )( ( uintptr_t )this->base + ( destroy_hdrs ? virt_hdr_size : 0 ) ), this->size ) ) {
-				kdmLog( L"[-] Failed to write local image to remote image" << std::endl );
+			if ( !intel_driver::WriteMemory( realBase, ( PVOID )( ( uintptr_t )this->base + ( destroy_hdrs ? virt_hdr_size : 0 ) ), this->size ) ) 
+			{
 				this->krnl_base = realBase;
+				status = PMCouldNotWriteMappedImageInKernelMemory;
 				break;
 			}
 
 			/* getting the address of the entry point */
 			const ULONG64 address_of_entry_point = this->krnl_base + this->nt->OptionalHeader.AddressOfEntryPoint;
-			kdmLog( L"[<] Calling DriverEntry 0x" << reinterpret_cast< void* >( address_of_entry_point ) << std::endl );
-
 
 			/* CALL ENTRY POINT */
-			if ( !intel_driver::CallKernelFunction( &status, address_of_entry_point, realBase, 0 ) ) {
-				kdmLog( L"[-] Failed to call driver entry" << std::endl );
+			if ( !intel_driver::CallKernelFunction( &status, address_of_entry_point, realBase, 0 ) ) 
+			{
 				this->krnl_base = realBase;
+				status = PMCouldNotCallDrvEntryPoint;
 				break;
 			}
 
@@ -1222,7 +1236,7 @@ public:
 
 			/* freeing the locally allocated memory */
 			VirtualFree( this->base, 0, MEM_RELEASE );
-			return 0;
+			return PMSuccess;	/* successful */
 
 		} while ( false );
 
@@ -1231,7 +1245,7 @@ public:
 		bool free_status = false;
 		VirtualFree( this->base, 0, MEM_RELEASE );
 		free_status = intel_driver::FreePool( this->krnl_base );
-		return 6;
+		return status;
 	}
 
 

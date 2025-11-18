@@ -12,6 +12,7 @@ provided in the `EAT` are correct.
 - [x] Symbols
 - [x] Pointers
 - [x] Structure offsets
+- [x] Structure size
 
 This can easily work even without internet as long as the needed `.pdb`-s
 are saved in the cache directory.
