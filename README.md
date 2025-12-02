@@ -7,6 +7,7 @@ pattern scanning and offsets. Every symbol that is requested through the
 special `EAT` will get resolved by the mapper through `PDB` parsing, 
 as long as the user can reach `Microsoft's symbols server` and the names
 provided in the `EAT` are correct.
+`( pm.h contains the needed macros )`
 
 ### Supports:
 - [x] Symbols
